@@ -12,14 +12,10 @@ SRC_DIR = Path(__file__).resolve().parent / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pipeline import Phase1DataPipeline
-from blending_engine import HybridBlendingEngine
-from evaluator import ForecastEvaluator
-from evaluation_report import print_executive_report
-
 
 def run_pipeline(days: int = 7):
     print(">>> [RUNNER] 1. INGESTING LIVE FORECASTS & HISTORICAL GROUND TRUTH <<<")
+    from pipeline import Phase1DataPipeline
     pipeline = Phase1DataPipeline()
     pipeline.run_live_forecast_ingestion()
     pipeline.run_historical_observations_ingestion(days_back=days)
@@ -28,6 +24,7 @@ def run_pipeline(days: int = 7):
 
 def run_blending():
     print(">>> [RUNNER] 2. EXECUTING HYBRID AI-NWP BLENDING ENGINE <<<")
+    from blending_engine import HybridBlendingEngine
     engine = HybridBlendingEngine()
     results = engine.run_blending()
     engine.print_blending_report(results)
@@ -35,6 +32,8 @@ def run_blending():
 
 def run_evaluation():
     print(">>> [RUNNER] 3. RUNNING FORECAST EVALUATION & BENCHMARKING <<<")
+    from evaluator import ForecastEvaluator
+    from evaluation_report import print_executive_report
     evaluator = ForecastEvaluator()
     results = evaluator.run_full_evaluation()
     print_executive_report(results)
@@ -59,6 +58,12 @@ def run_audit():
     return run_deep_audit()
 
 
+def run_api(host: str = "127.0.0.1", port: int = 8000):
+    print(f">>> [RUNNER] STARTING FASTAPI BACKEND SERVER (http://{host}:{port}) <<<")
+    import uvicorn
+    uvicorn.run("api:app", host=host, port=port, reload=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Master CLI Runner for PS 26081 Hybrid AI-NWP Blending System")
     parser.add_argument("--ingest", action="store_true", help="Ingest live forecasts and historical observations")
@@ -67,6 +72,7 @@ def main():
     parser.add_argument("--evaluate", action="store_true", help="Compute verification metrics (RMSE, MAE, Skill Score)")
     parser.add_argument("--test", action="store_true", help="Run full automated unit & integration test suite")
     parser.add_argument("--audit", action="store_true", help="Run cross-phase data integrity & bounds audit")
+    parser.add_argument("--api", action="store_true", help="Launch FastAPI server for frontend integration")
     parser.add_argument("--all", action="store_true", help="Run full pipeline end-to-end (ingest, blend, evaluate, audit)")
 
     args = parser.parse_args()
@@ -88,6 +94,8 @@ def main():
             run_tests()
         if args.audit:
             run_audit()
+        if args.api:
+            run_api()
 
 
 if __name__ == "__main__":

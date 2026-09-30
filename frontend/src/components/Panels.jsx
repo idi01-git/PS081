@@ -12,7 +12,7 @@ const LogoArt={
 // Drop official logos at public/logos/moes.png and public/logos/imd.png to replace these placeholder badges.
 export function Logo({kind}){const [bad,setBad]=useState(false);const alt=kind==='moes'?'Ministry of Earth Sciences':'India Meteorological Department';const I=(src,c)=><img src={src} alt={alt} onError={()=>setBad(true)} decoding="async" className={`h-full w-auto object-contain ${c}`}/>;
  return <div className={`shrink-0 ${kind==='imd'?'h-12':'h-11 w-11'}`}>{bad?LogoArt[kind]:kind==='moes'?<>{I('/logos/moes-light.png','logo-dark-only')}{I('/logos/moes.png','logo-light-only')}</>:I('/logos/imd.png','')}</div>;}
-export function DashboardHeader({now,onHow}){
+export function DashboardHeader({now,onHow,isBackendLive=false,backendLatency=1.2}){
  return <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#172b4d] bg-[#050d1a] px-4 py-2">
   <div className="flex items-center gap-3 text-[11px] leading-tight">
    <Logo kind="moes"/>
@@ -24,9 +24,13 @@ export function DashboardHeader({now,onHow}){
    <p className="text-[11px] tracking-wider text-cyan-400">DISASTER MANAGEMENT | OPERATIONAL FORECASTING | MoES / NCMRWF</p></div>
   <div className="flex items-center gap-1.5 text-[10px] leading-tight">
    <button onClick={onHow} className="flex items-center gap-1 rounded border border-cyan-600/50 px-1.5 py-0.5 text-cyan-300 hover:bg-cyan-500/10"><Workflow size={11}/>How it works</button>
-   <div className="rounded border border-green-500/40 bg-green-500/10 px-1.5 py-0.5"><span className="live-dot"/> LIVE OPERATIONS MODE</div>
-   <div className="rounded border border-[#172b4d] px-1.5 py-0.5"><span className="live-dot"/> 5/5 MODELS SYNCED<div className="text-[10px] text-slate-400">Latency: 1.2s</div></div>
-   <div className="text-right"><DemoTag t="Prototype Mode"/><div className="mt-0.5 text-slate-300">Last updated: {now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} IST</div></div>
+   {isBackendLive ? (
+    <div className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-300 font-semibold"><span className="live-dot bg-emerald-400"/> FASTAPI BACKEND CONNECTED</div>
+   ) : (
+    <div className="rounded border border-yellow-500/40 bg-yellow-500/10 px-1.5 py-0.5 text-yellow-300"><span className="live-dot bg-yellow-400"/> STANDALONE CLIENT MODE</div>
+   )}
+   <div className="rounded border border-[#172b4d] px-1.5 py-0.5"><span className="live-dot"/> 6/6 MODELS SYNCED<div className="text-[10px] text-slate-400">Latency: {backendLatency}ms</div></div>
+   <div className="text-right"><DemoTag t={isBackendLive ? "Operational Feed" : "Prototype Mode"}/><div className="mt-0.5 text-slate-300">Last updated: {now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} IST</div></div>
   </div></header>;
 }
 const SEC={Overview:'MONITORING','Model Weights':'ANALYTICS','Case Studies':'RESOURCES'};
@@ -57,21 +61,28 @@ const PI={rain:CloudRain,temp:Thermometer,wind:Wind,pres:Gauge};
 function WeatherParameterCard({k,sel,onClick}){const I=PI[k];return <button onClick={onClick} className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-left text-xs ${sel?'border-cyan-400 bg-[#1d6dff]/20 shadow-[0_0_12px_#22d3ee55]':'border-[#172b4d] hover:border-blue-500'}`}><I size={18} className={sel?'text-cyan-300':'text-slate-400'}/><span>{PARAMS[k].label}<br/><span className="text-slate-400">({PARAMS[k].unit})</span></span></button>;}
 export const WeatherParameterSelector=({param,setParam})=><div><div className="mb-1 text-[11px] text-slate-400">Weather Parameter</div><div className="flex gap-1.5">{Object.keys(PARAMS).map(k=><WeatherParameterCard key={k} k={k} sel={k===param} onClick={()=>setParam(k)}/>)}</div></div>;
 
-export function ExtremeAlert({loc,rain,h}){
- const lvl=riskLevel(rain),hi=lvl==='HIGH RISK';
- return <Card c={`flex items-center gap-4 p-4 ${hi?'border-red-500/60 bg-gradient-to-br from-[#5c0f16] to-[#2b0a12] shadow-[0_0_24px_#ef444433]':lvl==='MODERATE'?'border-orange-500/50 bg-orange-950/30':'border-green-600/40'}`}>
-  <AlertTriangle size={44} className={hi?'text-red-500':'text-orange-400'}/>
-  <div className="flex-1"><div className="text-[10px] font-semibold tracking-widest text-orange-300">⚠ EXTREME WEATHER ALERT</div>
-   <div className="text-xl font-bold text-white">{hi?'Heavy Rainfall Expected':lvl==='MODERATE'?'Moderate Rainfall Possible':'No Extreme Rainfall'}</div>
-   <div className="text-xs text-slate-300">Blended forecast: <b>{rain} mm</b> accumulated to +{h}h · {loc.name}</div>
+export function ExtremeAlert({loc,rain,h,liveAlert}){
+ const isLive = liveAlert?.isLive;
+ const lvl = isLive ? liveAlert.alert_level : riskLevel(rain);
+ const hi = lvl==='HIGH RISK' || lvl==='CRITICAL' || lvl==='WARNING';
+ const displayVal = isLive && liveAlert.blended_value !== undefined ? liveAlert.blended_value : rain;
+ const reason = isLive && liveAlert.guidance_note ? liveAlert.guidance_note : (hi?'Heavy Rainfall Expected':lvl==='MODERATE'?'Moderate Rainfall Possible':'No Extreme Rainfall');
+ return <Card c={`flex items-center gap-4 p-4 ${hi?'border-red-500/60 bg-gradient-to-br from-[#5c0f16] to-[#2b0a12] shadow-[0_0_24px_#ef444433]':lvl==='MODERATE'||lvl==='WATCH'?'border-orange-500/50 bg-orange-950/30':'border-green-600/40'}`}>
+  <AlertTriangle size={44} className={hi?'text-red-500':lvl==='WATCH'?'text-orange-400':'text-green-400'}/>
+  <div className="flex-1"><div className="text-[10px] font-semibold tracking-widest text-orange-300">⚠ OPERATIONAL HAZARD WATCH</div>
+   <div className="text-xl font-bold text-white">{reason}</div>
+   <div className="text-xs text-slate-300">Blended value: <b>{displayVal} mm</b> accumulated to +{h}h · {loc.name}</div>
    <div className="text-xs text-orange-300">(&gt; {IMD_THRESHOLD} mm IMD heavy-rain threshold)</div></div>
-  <div className="flex items-center gap-1"><span className={`rounded px-2 py-1 text-xs font-bold ${hi?'bg-red-600':'bg-orange-600'}`}>{lvl}</span><ChevronRight size={18}/></div>
+  <div className="flex items-center gap-1"><span className={`rounded px-2 py-1 text-xs font-bold ${hi?'bg-red-600':lvl==='WATCH'?'bg-orange-600':'bg-emerald-600'}`}>{lvl}</span><ChevronRight size={18}/></div>
  </Card>;
 }
-export function ConsensusCard({loc}){
- const v=loc.consensus,r=34,C=2*Math.PI*r;
+export function ConsensusCard({loc,liveAlert}){
+ const isLive = liveAlert?.isLive;
+ const v = isLive && liveAlert.confidence_pct ? Math.round(liveAlert.confidence_pct) : loc.consensus;
+ const ratio = isLive && liveAlert.consensus_ratio ? liveAlert.consensus_ratio : `${loc.agree} of 6`;
+ const r=34,C=2*Math.PI*r;
  return <Card c="flex items-center gap-4 p-4"><svg width="88" height="88" viewBox="0 0 88 88"><circle cx="44" cy="44" r={r} stroke="#173050" strokeWidth="8" fill="none"/><circle cx="44" cy="44" r={r} stroke="#2ee27d" strokeWidth="8" fill="none" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C*(1-v/100)} transform="rotate(-90 44 44)"/><text x="44" y="50" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700">{v}%</text></svg>
-  <div><div className="font-semibold text-white">Ensemble Consensus</div><div className="text-xs text-slate-300">{loc.agree} of 5 models indicate<br/>{loc.regime.toLowerCase()}</div><span className={`mt-1 inline-block rounded border px-2 py-0.5 text-[11px] ${v>=80?'border-green-500 text-green-400':'border-yellow-500 text-yellow-300'}`}>{v>=80?'High Agreement':'Moderate Agreement'}</span></div></Card>;
+  <div><div className="font-semibold text-white">Multi-Model Consensus</div><div className="text-xs text-slate-300">{ratio} constituent models indicate<br/>{loc.regime.toLowerCase()}</div><span className={`mt-1 inline-block rounded border px-2 py-0.5 text-[11px] ${v>=80?'border-green-500 text-green-400':'border-yellow-500 text-yellow-300'}`}>{v>=80?'High Confidence':'Moderate Confidence'}</span></div></Card>;
 }
 const TONE={LOW:'text-green-400',NO:'text-green-400',WATCH:'text-orange-300',MODERATE:'text-orange-300',HIGH:'text-red-400'};
 export const RiskCard=({icon:I,title,level,text})=><Card c="flex items-start gap-3 p-4"><I size={30} className="text-cyan-400"/><div><div className="text-[11px] text-slate-400">{title}</div><div className={`text-xl font-bold ${TONE[level]}`}>{level[0]+level.slice(1).toLowerCase()}</div><div className="text-[11px] text-slate-400">{text}</div></div></Card>;
