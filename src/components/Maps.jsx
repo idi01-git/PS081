@@ -1,0 +1,67 @@
+import {useEffect,useState} from 'react';
+import {MapContainer,Pane,GeoJSON,CircleMarker,Tooltip,useMap,useMapEvents} from 'react-leaflet';
+import {BaseLayers,BasemapSwitch,FieldOverlay,GradientLegend,renderField,makeRamp,rainAlpha,edgeFade,useStates,wxField} from './mapkit';
+import {Card,DemoTag} from './Panels';
+import {COLORS,MODELS,PARAMS,REGIONS,IMD_THRESHOLD,getForecast,getModelForecasts,dominant,riskLevel} from '../data/mockData';
+import {X} from 'lucide-react';
+export const BINS=[[300,'#c026d3'],[200,'#dc2626'],[100,'#f97316'],[50,'#facc15'],[25,'#a3d63a'],[10,'#22c55e'],[5,'#22d3ee'],[1,'#3b82f6'],[0,'#1e3a8a']];
+export const colorFor=v=>(BINS.find(([t])=>v>=t)||BINS[8])[1];
+const CITIES=[['Delhi',28.61,77.21],['Mumbai',19.08,72.88],['Kolkata',22.57,88.36],['Chennai',13.08,80.27],['Bengaluru',12.97,77.59],['Hyderabad',17.39,78.49],['Lucknow',26.85,80.95],['Kochi',9.93,76.27],['Ahmedabad',23.02,72.57]];
+const RAMP=makeRamp(BINS),EXT=[5,66,38,99];
+const hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+function Fly({c}){const m=useMap();useEffect(()=>{m.flyTo(c,5,{duration:.8})},[c[0],c[1]]);return null;}
+export function ForecastMap({loc,param,h,layer,setLayer}){
+ const mf=getModelForecasts(loc,param,h),v=layer==='Blended'?mf.Blended:mf[layer],peak=v/PARAMS[param].max*300,[base,setBase]=useState('dark');
+ const build=()=>renderField(EXT,(la,lo)=>{const d2=(la-loc.lat)**2+(lo-loc.lon)**2,n=Math.sin(la*1.7)*Math.cos(lo*2.1);
+  const x=wxField(la,lo,loc,peak);
+  const a=rainAlpha(x)*edgeFade(la,lo,EXT);if(a<=0)return null;const c=RAMP(x);return [c[0],c[1],c[2],a];},720);
+ const states=useStates();
+ return <Card c="relative overflow-hidden"><div className="absolute left-3 top-3 z-[1000] flex flex-wrap items-center gap-2"><span className="rounded bg-[#0a1628]/95 px-3 py-1.5 text-sm font-semibold">{layer} Forecast Heatmap — {PARAMS[param].label}</span><DemoTag/></div>
+  <div className="h-[470px]"><MapContainer center={[loc.lat,loc.lon]} zoom={5} minZoom={4} maxZoom={10} className="h-full w-full"><Fly c={[loc.lat,loc.lon]}/>
+   <Pane name="wx" style={{zIndex:250}}><FieldOverlay bounds={EXT} build={build} deps={[loc.id,param,h,layer]} opacity={.62} pane="wx"/></Pane>
+   <Pane name="bd" style={{zIndex:350}}>{states&&<GeoJSON data={states} pane="bd" interactive={false} style={{color:'#e2e8f0',weight:.9,fill:false,opacity:.7}}/>}</Pane>
+   <Pane name="lb" style={{zIndex:450}}/><BaseLayers kind={base}/>
+   {CITIES.map(([n,la,lo])=><CircleMarker key={n} center={[la,lo]} radius={2.5} pathOptions={{color:'#fff',weight:1}}><Tooltip permanent direction="right" className="city">{n}</Tooltip></CircleMarker>)}
+   <CircleMarker center={[loc.lat,loc.lon]} radius={9} pathOptions={{color:'#fff',fillColor:'#2563eb',fillOpacity:1,weight:2}}><Tooltip permanent direction="top" offset={[0,-8]}>{loc.name}</Tooltip></CircleMarker></MapContainer></div>
+  <div className="absolute bottom-3 left-3 z-[1000] flex gap-1">{['Blended',...MODELS].map(m=><button key={m} onClick={()=>setLayer(m)} className={`rounded border px-3 py-1 text-xs ${m===layer?'border-blue-400 bg-[#1d6dff]':'border-[#172b4d] bg-[#0a1628]/95'}`}>{m}</button>)}</div>
+  <BasemapSwitch kind={base} setKind={setBase} className="absolute right-3 bottom-8"/>
+  <GradientLegend BINS={BINS} title={`${PARAMS[param].label} (${PARAMS[param].unit}, scaled)`} className="absolute bottom-14 left-3"/>
+  <LocationForecastPanel loc={loc} param={param} h={h}/></Card>;
+}
+export function LocationForecastPanel({loc,param,h}){
+ const [open,setOpen]=useState(true);useEffect(()=>setOpen(true),[loc.id]);
+ if(!open)return null;
+ const mf=getModelForecasts(loc,param,h),u=PARAMS[param].unit,mx=Math.max(...Object.values(mf));
+ return <div className="absolute right-3 top-3 z-[1000] w-64 rounded-lg border border-[#172b4d] bg-[#0a1628]/95 p-3 text-xs shadow-xl">
+  <div className="flex justify-between"><b>Station Details: {loc.name}</b><button onClick={()=>setOpen(false)}><X size={14}/></button></div>
+  <div className="text-[10px] text-slate-400">{loc.lat.toFixed(4)}°N, {loc.lon.toFixed(4)}°E</div>
+  <div className="mt-2 text-slate-300">Forecast (+{h}h)</div>
+  <div className="flex items-center gap-2"><span className="text-2xl font-bold">{mf.Blended} {u}</span>{param==='rain'&&<span className="rounded bg-red-600/30 px-1.5 py-0.5 text-red-300">{riskLevel(mf.Blended)==='HIGH RISK'?'Heavy Rain':riskLevel(mf.Blended)==='MODERATE'?'Moderate Rain':'Light Rain'}</span>}</div>
+  <div className="mt-2 space-y-1">{Object.entries(mf).map(([m,v])=><div key={m} className="flex items-center gap-2"><span className="w-14">{m}</span><div className="h-2 flex-1 rounded bg-[#10213c]"><div className="h-2 rounded" style={{width:`${v/mx*100}%`,background:COLORS[m]}}/></div><span className="w-10 text-right">{v}</span></div>)}</div>
+  {param==='rain'&&<div className="mt-2 border-t border-[#172b4d] pt-1 text-[10px] text-slate-400">IMD Heavy Rain Threshold: {IMD_THRESHOLD} mm / 24h</div>}</div>;
+}
+function Pick({onPick}){useMapEvents({click:e=>onPick(e.latlng)});return null;}
+const nearest=(la,lo)=>REGIONS.reduce((b,x)=>((x.lat-la)**2+(x.lon-lo)**2<(b.lat-la)**2+(b.lon-lo)**2?x:b));
+export function ModelTrustMap(){
+ const [sel,setSel]=useState(REGIONS[4]),[base,setBase]=useState('dark'),states=useStates();
+ // Dominance field: nearest-region colouring, softened and clipped to India's state polygons so it follows real geography.
+ const build=()=>renderField(EXT,(la,lo)=>{const r=nearest(la,lo),c=hexRgb(COLORS[dominant(r.w)]);return [c[0],c[1],c[2],r===sel?1:.88];},720,(cv,proj)=>{
+  if(!states)return cv;
+  const out=document.createElement('canvas');out.width=cv.width;out.height=cv.height;const x=out.getContext('2d');
+  x.filter='blur(1.5px)';x.drawImage(cv,0,0);x.filter='none';x.globalCompositeOperation='destination-in';x.beginPath();
+  states.features.forEach(f=>{const g=f.geometry,polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+   polys.forEach(p=>p.forEach(ring=>ring.forEach(([lo,la],i)=>{const [px,py]=proj(la,lo);i?x.lineTo(px,py):x.moveTo(px,py);})));});
+  x.fillStyle='#000';x.fill('evenodd');return out;});
+ return <Card c="relative overflow-hidden"><div className="absolute left-3 top-3 z-[1000] flex items-center gap-2"><span className="rounded bg-[#0a1628]/95 px-3 py-1.5 text-sm font-semibold">Model Trust & Dominance Map</span><DemoTag/></div>
+  <div className="h-[470px]"><MapContainer center={[22,80]} zoom={4.6} zoomSnap={.1} minZoom={4} maxZoom={9} className="h-full w-full">
+   <Pane name="wx" style={{zIndex:250}}><FieldOverlay bounds={EXT} build={build} deps={[sel,states]} opacity={.62} pane="wx"/></Pane>
+   <Pane name="bd" style={{zIndex:350}}>{states&&<GeoJSON data={states} pane="bd" interactive={false} style={{color:'#f1f5f9',weight:.8,fill:false,opacity:.7}}/>}</Pane>
+   <Pane name="lb" style={{zIndex:450}}/><BaseLayers kind={base}/>
+   <Pick onPick={ll=>setSel(nearest(ll.lat,ll.lng))}/>
+   <Pane name="mk" style={{zIndex:600}}>{REGIONS.map(r=><CircleMarker key={r.name} center={[r.lat,r.lon]} radius={r===sel?5:3} pane="mk" eventHandlers={{click:()=>setSel(r)}} pathOptions={{color:'#0b1526',weight:1,fillColor:'#fff',fillOpacity:1}}><Tooltip direction="right" offset={[5,0]} permanent className="city">{r.name}</Tooltip></CircleMarker>)}</Pane></MapContainer></div>
+  <BasemapSwitch kind={base} setKind={setBase} className="absolute left-3 bottom-8"/>
+  <div className="absolute right-3 top-3 z-[1000] w-44 rounded-lg border border-[#172b4d] bg-[#0a1628]/95 p-3 text-xs">
+   <div className="font-semibold">Dominant Model</div>{MODELS.map(m=><div key={m} className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{background:COLORS[m]}}/>{m}</div>)}
+   <div className="mt-2 border-t border-[#172b4d] pt-2"><div className="font-semibold">Region: {sel.name}</div>{MODELS.map(m=><div key={m} className="flex justify-between"><span>{m}</span><span>{sel.w[m]}%</span></div>)}
+   <div className="mt-1 text-cyan-300">Dominant: {dominant(sel.w)}</div></div></div></Card>;
+}
