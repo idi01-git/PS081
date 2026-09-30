@@ -1,0 +1,27 @@
+# Documentation & Audits
+docs/
+audits/
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+test_data/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Temporary files & OS artifacts
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# IDE & Editors
+.vscode/
+.idea/
