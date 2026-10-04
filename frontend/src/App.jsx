@@ -25,7 +25,11 @@ import {
   fetchForecastData,
   fetchModelWeights,
   fetchVerificationScorecard,
-  fetchAlerts
+  fetchAlerts,
+  getImmediateForecast,
+  getImmediateWeights,
+  getImmediateVerification,
+  getImmediateAlerts
 } from './services/api';
 
 const FLOW = [
@@ -54,13 +58,13 @@ export default function App() {
   const [page, setPage] = useState('Overview');
   const [theme, setTheme] = useState('dark');
 
-  // Backend live state
+  // Backend live state & immediate 0ms data state
   const [isBackendLive, setIsBackendLive] = useState(false);
   const [backendLatency, setBackendLatency] = useState(1.2);
-  const [liveForecast, setLiveForecast] = useState(null);
-  const [liveWeights, setLiveWeights] = useState(null);
-  const [liveVerification, setLiveVerification] = useState(null);
-  const [liveAlert, setLiveAlert] = useState(null);
+  const [liveForecast, setLiveForecast] = useState(() => getImmediateForecast(LOCATIONS[0], 'rain', 72));
+  const [liveWeights, setLiveWeights] = useState(() => getImmediateWeights(LOCATIONS[0], 'rain', 72));
+  const [liveVerification, setLiveVerification] = useState(() => getImmediateVerification('rain'));
+  const [liveAlert, setLiveAlert] = useState(() => getImmediateAlerts(LOCATIONS[0], 'rain', 72));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -94,28 +98,44 @@ export default function App() {
     };
   }, []);
 
-  // Fetch forecast data and weights when loc, param, or h changes
+  // 1. Instant 0ms synchronous UI update whenever loc, param, or h changes
   useEffect(() => {
-    let mounted = true;
-    const loadData = async () => {
-      const [fc, wt, sc, al] = await Promise.all([
-        fetchForecastData(loc.id, param, h),
-        fetchModelWeights(loc.id, param, h),
-        fetchVerificationScorecard(param),
-        fetchAlerts(loc.id)
-      ]);
-      if (mounted) {
-        setLiveForecast(fc);
-        setLiveWeights(wt);
-        setLiveVerification(sc);
-        setLiveAlert(al);
-      }
-    };
-    loadData();
-    return () => {
-      mounted = false;
-    };
+    setLiveForecast(getImmediateForecast(loc, param, h));
+    setLiveWeights(getImmediateWeights(loc, param, h));
+    setLiveVerification(getImmediateVerification(param));
+    setLiveAlert(getImmediateAlerts(loc, param, h));
   }, [loc.id, param, h]);
+
+  // 2. Debounced background live server sync (only if backend is active)
+  useEffect(() => {
+    if (!isBackendLive) return;
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const [fc, wt, sc, al] = await Promise.all([
+          fetchForecastData(loc.id, param, h, controller.signal),
+          fetchModelWeights(loc.id, param, h, controller.signal),
+          fetchVerificationScorecard(param, controller.signal),
+          fetchAlerts(loc.id, controller.signal)
+        ]);
+        if (!controller.signal.aborted) {
+          if (fc) setLiveForecast(fc);
+          if (wt) setLiveWeights(wt);
+          if (sc) setLiveVerification(sc);
+          if (al) setLiveAlert(al);
+        }
+      } catch {
+        // Aborted or temporary network delay; UI already has instant data
+      }
+    }, 120);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [loc.id, param, h, isBackendLive]);
+
 
   const forecastValue = liveForecast?.currentBlended ?? getForecast(loc, param, h);
   const map = ht => (

@@ -156,6 +156,7 @@ export function ModelWeightChart({ loc, liveWeights, h = 24, setH }) {
                 outerRadius={114}
                 paddingAngle={2.5}
                 stroke="none"
+                animationDuration={250}
               >
                 {data.map(d => (
                   <Cell key={d.name} fill={COLORS[d.name] || '#888'} />
@@ -323,6 +324,7 @@ export function ForecastTimeSeries({ loc, param, h = 24, setH, liveForecast }) {
                 fill="#8b7cf6"
                 fillOpacity={isLight ? 0.2 : 0.25}
                 stroke="none"
+                animationDuration={250}
               />
               {MODELS.map(m => (
                 <Line
@@ -333,6 +335,7 @@ export function ForecastTimeSeries({ loc, param, h = 24, setH, liveForecast }) {
                   strokeDasharray="5 4"
                   dot={false}
                   strokeWidth={1.5}
+                  animationDuration={250}
                 />
               ))}
               <Line
@@ -342,6 +345,7 @@ export function ForecastTimeSeries({ loc, param, h = 24, setH, liveForecast }) {
                 stroke={TC('Blended')}
                 strokeWidth={3.5}
                 dot={{ r: 3.5, fill: '#fff', stroke: '#ff4d4f' }}
+                animationDuration={250}
               />
               <Line
                 type="monotone"
@@ -351,6 +355,7 @@ export function ForecastTimeSeries({ loc, param, h = 24, setH, liveForecast }) {
                 strokeWidth={2.2}
                 dot={{ r: 4, fill: obsColor }}
                 connectNulls={false}
+                animationDuration={250}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -529,7 +534,7 @@ export function VerificationScorecard({ loc, liveVerification, h = 24, setH }) {
                 }
                 tickFormatter={v => (tab.includes('Rate') ? `${v}%` : v)}
               />
-              <Bar dataKey="v" radius={[4, 4, 0, 0]} maxBarSize={38}>
+              <Bar dataKey="v" radius={[4, 4, 0, 0]} maxBarSize={38} animationDuration={250}>
                 {data.map(d => (
                   <Cell key={d.k} fill={COLORS[d.k] || '#888'} />
                 ))}

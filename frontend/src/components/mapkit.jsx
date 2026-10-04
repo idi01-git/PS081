@@ -1,5 +1,5 @@
 // Shared map building blocks: reliable key-free basemaps + smooth canvas raster overlay.
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useRef} from 'react';
 import L from 'leaflet';
 import {TileLayer,useMap} from 'react-leaflet';
 
@@ -43,9 +43,12 @@ const RAD=Math.PI/180;
 export const merc=la=>Math.log(Math.tan(Math.PI/4+la*RAD/2));
 const unmerc=y=>Math.atan(Math.sinh(y))/RAD;
 
+// Global raster image cache to make variable & horizon toggles instant (0ms)
+const rasterUrlCache = new Map();
+
 // Renders sample(la,lo)->[r,g,b,a(0..1)] into a canvas covering bounds=[south,west,north,east].
 // Rows are spaced in Mercator space, so no latitude distortion. Browser bilinear scaling gives smooth results.
-export function renderField(bounds,sample,W=640,post){
+export function renderField(bounds,sample,W=260,post){
  const [s,w,n,e]=bounds,ys=merc(s),yn=merc(n),H=Math.round(W*(yn-ys)/((e-w)*RAD));
  const c=document.createElement('canvas');c.width=W;c.height=H;
  const ctx=c.getContext('2d'),img=ctx.createImageData(W,H),d=img.data;
@@ -57,15 +60,43 @@ export function renderField(bounds,sample,W=640,post){
  return post?post(c,proj):c;
 }
 
-// Leaflet ImageOverlay driven by a canvas; re-rendered when `deps` change.
-export function FieldOverlay({bounds,build,deps,opacity=.72,pane}){
+// Leaflet ImageOverlay driven by a canvas; cached & re-rendered instantly when `deps` change.
+export function FieldOverlay({bounds,build,cacheKey,deps,opacity=.72,pane}){
  const map=useMap();
+ const layerRef=useRef(null);
+
  useEffect(()=>{
-  const url=build().toDataURL('image/png');
-  const layer=L.imageOverlay(url,[[bounds[0],bounds[1]],[bounds[2],bounds[3]]],{opacity,interactive:false,pane,className:'field-overlay'}).addTo(map);
-  return()=>{map.removeLayer(layer)};
+  let url;
+  if(cacheKey && rasterUrlCache.has(cacheKey)){
+   url=rasterUrlCache.get(cacheKey);
+  } else {
+   url=build().toDataURL('image/png');
+   if(cacheKey){
+    if(rasterUrlCache.size > 80){
+     const oldest = rasterUrlCache.keys().next().value;
+     rasterUrlCache.delete(oldest);
+    }
+    rasterUrlCache.set(cacheKey, url);
+   }
+  }
+
+  if(layerRef.current){
+   layerRef.current.setUrl(url);
+  } else {
+   layerRef.current=L.imageOverlay(url,[[bounds[0],bounds[1]],[bounds[2],bounds[3]]],{opacity,interactive:false,pane,className:'field-overlay'}).addTo(map);
+  }
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },deps);
+
+ useEffect(()=>{
+  return()=>{
+   if(layerRef.current){
+    map.removeLayer(layerRef.current);
+    layerRef.current=null;
+   }
+  };
+ },[map]);
+
  return null;
 }
 

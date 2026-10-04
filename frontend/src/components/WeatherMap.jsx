@@ -16,7 +16,7 @@ function Sync({loc,zoom}){
   const first=useRef(true);
   useEffect(()=>{
     if(first.current){first.current=false;return;}
-    m.flyTo([loc.lat,loc.lon],zoom,{duration:.9});
+    m.flyTo([loc.lat,loc.lon],zoom,{duration:.5});
   },[loc.id]);
   useEffect(()=>{
     const ro=new ResizeObserver(()=>m.invalidateSize());
@@ -88,6 +88,7 @@ export function WeatherMap({loc,param,h,setH,layer,setLayer,height='h-[420px]'})
   const v=layer==='Blended'?mf.Blended:mf[layer];
   const u=PARAMS[param].unit;
   const peak=v/PARAMS[param].max*300;
+  const cacheKey=`${loc.id}_${param}_${layer}_${h}_${Math.round(peak)}`;
   const build=()=>renderField(EXT,(la,lo)=>{
     const d2=(la-loc.lat)**2+(lo-loc.lon)**2,n=Math.sin(la*1.7)*Math.cos(lo*2.1);
     const x=wxField(la,lo,loc,peak);
@@ -95,7 +96,7 @@ export function WeatherMap({loc,param,h,setH,layer,setLayer,height='h-[420px]'})
     if(a<=0)return null;
     const c=RAMP(x);
     return [c[0],c[1],c[2],a];
-  },720);
+  },260);
   const zoom=5.5;
 
   return (
@@ -184,7 +185,7 @@ export function WeatherMap({loc,param,h,setH,layer,setLayer,height='h-[420px]'})
 
         <MapContainer zoomSnap={.5} center={INDIA[0]} zoom={INDIA[1]} minZoom={4} maxZoom={10} zoomControl={false} maxBounds={[[-2,58],[42,108]]} className="h-full w-full">
           <Pane name="wx" style={{zIndex:250}}>
-            <FieldOverlay bounds={EXT} build={build} deps={[loc.id,param,layer,h]} opacity={.62} pane="wx"/>
+            <FieldOverlay bounds={EXT} build={build} cacheKey={cacheKey} deps={[loc.id,param,layer,h]} opacity={.62} pane="wx"/>
           </Pane>
           <Pane name="bd" style={{zIndex:350}}>
             {states && <GeoJSON data={states} pane="bd" interactive={false} style={{color:base==='street'?'#475569':'#e2e8f0',weight:.9,fill:false,opacity:.7}}/>}
