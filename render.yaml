@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: sih-hybrid-weather
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000

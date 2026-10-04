@@ -7,7 +7,8 @@
 import { LOCATIONS, MODELS, PARAMS } from '../data/mockData';
 import backendSnapshot from '../data/backendData.json';
 
-const API_BASE = '/api';
+const API_BASE = (import.meta.env?.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api';
+const REQUEST_TIMEOUT_MS = 6000;
 
 const PARAM_TO_VAR = {
   rain: 'precipitation',
@@ -34,7 +35,7 @@ const MODEL_MAP = {
 
 export async function checkBackendStatus() {
   try {
-    const res = await fetch(`${API_BASE}/status`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(`${API_BASE}/status`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) throw new Error('Not ok');
     const data = await res.json();
     return { online: true, ...data };
@@ -52,7 +53,7 @@ export async function checkBackendStatus() {
 
 export async function fetchStationList() {
   try {
-    const res = await fetch(`${API_BASE}/stations`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(`${API_BASE}/stations`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) throw new Error('API error');
     return await res.json();
   } catch {
@@ -80,7 +81,7 @@ export async function fetchForecastData(locId, param, horizon) {
   try {
     const res = await fetch(
       `${API_BASE}/forecast?location=${encodeURIComponent(locId)}&variable=${encodeURIComponent(param)}&lead_time=${horizon}`,
-      { signal: AbortSignal.timeout(2000) }
+      { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }
     );
     if (res.ok) {
       const data = await res.json();
@@ -99,7 +100,7 @@ export async function fetchForecastData(locId, param, horizon) {
   const stationForecasts = backendSnapshot.forecasts?.[locId]?.[varName];
   if (stationForecasts && stationForecasts.length > 0) {
     const filtered = stationForecasts.filter(r => r.lead_time_hours >= -12 && r.lead_time_hours <= horizon);
-    
+
     // Subsample evenly for charts
     const step = Math.max(1, Math.floor(filtered.length / 8));
     const sampled = [];
@@ -137,7 +138,7 @@ export async function fetchForecastData(locId, param, horizon) {
     const currentBlended = targetRow ? targetRow.final_blended_forecast : 0;
 
     return {
-      isLive: true,
+      isLive: false,
       source: 'BACKEND_SNAPSHOT',
       timeSeries,
       currentBlended: Math.round((currentBlended ?? 0) * 100) / 100
@@ -163,7 +164,7 @@ export async function fetchModelWeights(locId, param, horizon) {
   try {
     const res = await fetch(
       `${API_BASE}/weights?location=${encodeURIComponent(locId)}&variable=${encodeURIComponent(param)}&lead_time=${horizon}`,
-      { signal: AbortSignal.timeout(1500) }
+      { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }
     );
     if (res.ok) {
       const data = await res.json();
@@ -197,7 +198,7 @@ export async function fetchModelWeights(locId, param, horizon) {
     const dom = (row.dominant_model || 'ecmwf_ifs').replace('ecmwf_ifs', 'ECMWF').toUpperCase();
 
     return {
-      isLive: true,
+      isLive: false,
       weights: rawWeights,
       dominantModel: dom,
       explainability: {
@@ -224,7 +225,7 @@ export async function fetchVerificationScorecard(param) {
   try {
     const res = await fetch(
       `${API_BASE}/verification?variable=${encodeURIComponent(param)}`,
-      { signal: AbortSignal.timeout(1500) }
+      { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }
     );
     if (res.ok) {
       const data = await res.json();
@@ -257,7 +258,7 @@ export async function fetchVerificationScorecard(param) {
         };
       });
       return {
-        isLive: true,
+        isLive: false,
         models,
         bestNwp: 'ECMWF'
       };
@@ -274,7 +275,7 @@ export async function fetchAlerts(locId) {
   // 1. Try Live API
   try {
     const res = await fetch(`${API_BASE}/alerts?location=${encodeURIComponent(locId)}`, {
-      signal: AbortSignal.timeout(1500)
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
     if (res.ok) {
       return {
@@ -291,7 +292,7 @@ export async function fetchAlerts(locId) {
   if (rainForecasts && rainForecasts.length > 0) {
     const alertRow = rainForecasts.find(r => r.alert_level && r.alert_level !== 'NONE') || rainForecasts[0];
     return {
-      isLive: true,
+      isLive: false,
       location: locId,
       name: alertRow.location_name || locId.toUpperCase(),
       alert_level: alertRow.alert_level || 'NONE',

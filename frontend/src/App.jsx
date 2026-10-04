@@ -3,12 +3,10 @@ import { X } from 'lucide-react';
 import {
   DashboardHeader,
   Sidebar,
-  LocationSelector,
-  QuickLocations,
-  ForecastHorizon,
-  WeatherParameterSelector,
+  OperationalCommandStrip,
   ExtremeAlert,
   ConsensusCard,
+  HazardMatrixCard,
   RiskRow,
   Card,
   DemoTag
@@ -66,10 +64,15 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, [theme]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000);
+    const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -114,9 +117,9 @@ export default function App() {
     };
   }, [loc.id, param, h]);
 
-  const rain = liveForecast?.currentBlended ?? getForecast(loc, 'rain', h);
+  const forecastValue = liveForecast?.currentBlended ?? getForecast(loc, param, h);
   const map = ht => (
-    <WeatherMap loc={loc} param={param} h={h} layer={layer} setLayer={setLayer} height={ht} />
+    <WeatherMap loc={loc} param={param} h={h} setH={setH} layer={layer} setLayer={setLayer} height={ht} />
   );
 
   const csv = () => {
@@ -133,62 +136,72 @@ export default function App() {
   const views = {
     Overview: (
       <>
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6 [&>*]:h-full [&>div>div]:h-full">
-          <div className="md:col-span-3 xl:col-span-2">
-            <ExtremeAlert loc={loc} rain={rain} h={h} liveAlert={liveAlert} />
+        <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-12">
+          <div className="md:col-span-2 xl:col-span-4 h-full">
+            <ExtremeAlert loc={loc} value={forecastValue} param={param} h={h} liveAlert={liveAlert} />
           </div>
-          <ConsensusCard loc={loc} liveAlert={liveAlert} />
-          <RiskRow loc={loc} />
-        </div>
-        <div className="grid gap-3 xl:grid-cols-5">
-          <div className="xl:col-span-3">{map('h-[430px]')}</div>
-          <div className="xl:col-span-2">
-            <TrustMapCard onView={() => setPage('Model Weights')} />
+          <div className="xl:col-span-4 h-full">
+            <ConsensusCard loc={loc} liveAlert={liveAlert} />
+          </div>
+          <div className="md:col-span-2 xl:col-span-4 h-full">
+            <HazardMatrixCard loc={loc} />
           </div>
         </div>
-        <div className="grid gap-3 xl:grid-cols-5">
-          <div className="xl:col-span-3">
-            <ForecastTimeSeries loc={loc} param={param} h={h} liveForecast={liveForecast} />
-          </div>
-          <div className="xl:col-span-2">
-            <ModelWeightChart loc={loc} liveWeights={liveWeights} />
+        <div className="grid gap-3 xl:grid-cols-5 items-stretch">
+          <div className="xl:col-span-3 h-full">{map('h-[420px]')}</div>
+          <div className="xl:col-span-2 h-full">
+            <TrustMapCard onView={() => setPage('Model Weights')} height="h-[420px]" h={h} setH={setH} />
           </div>
         </div>
-        <div className="grid gap-3 xl:grid-cols-5">
-          <div className="xl:col-span-2">
-            <VerificationScorecard loc={loc} liveVerification={liveVerification} />
+        <div className="grid gap-3 xl:grid-cols-5 items-stretch">
+          <div className="xl:col-span-3 h-full">
+            <ForecastTimeSeries loc={loc} param={param} h={h} setH={setH} liveForecast={liveForecast} />
           </div>
-          <div className="xl:col-span-3">
-            <ExplainabilityCard loc={loc} h={h} liveWeights={liveWeights} />
+          <div className="xl:col-span-2 h-full">
+            <ModelWeightChart loc={loc} liveWeights={liveWeights} h={h} setH={setH} />
+          </div>
+        </div>
+        <div className="grid gap-3 xl:grid-cols-5 items-stretch">
+          <div className="xl:col-span-2 h-full">
+            <VerificationScorecard loc={loc} liveVerification={liveVerification} h={h} setH={setH} />
+          </div>
+          <div className="xl:col-span-3 h-full">
+            <ExplainabilityCard loc={loc} h={h} setH={setH} liveWeights={liveWeights} />
           </div>
         </div>
       </>
     ),
     'Forecast Map': (
-      <>
-        {map('h-[72vh]')}
-        <TrustMapCard onView={() => setPage('Model Weights')} />
-      </>
+      <div className="grid gap-3 xl:grid-cols-5 items-stretch">
+        <div className="xl:col-span-3 h-full">{map('h-[560px]')}</div>
+        <div className="xl:col-span-2 h-full">
+          <TrustMapCard onView={() => setPage('Model Weights')} height="h-[560px]" h={h} setH={setH} />
+        </div>
+      </div>
     ),
     'Time Series': (
       <>
-        <ForecastTimeSeries loc={loc} param={param} h={h} liveForecast={liveForecast} />
-        <ExtremeAlert loc={loc} rain={rain} h={h} liveAlert={liveAlert} />
+        <ForecastTimeSeries loc={loc} param={param} h={h} setH={setH} liveForecast={liveForecast} />
+        <ExtremeAlert loc={loc} value={forecastValue} param={param} h={h} liveAlert={liveAlert} />
       </>
     ),
     'Model Weights': (
-      <div className="grid gap-3 xl:grid-cols-2">
-        <ModelWeightChart loc={loc} liveWeights={liveWeights} />
-        <TrustMapCard onView={() => setPage('Model Weights')} />
+      <div className="grid gap-3 xl:grid-cols-2 items-stretch">
+        <div className="h-full">
+          <ModelWeightChart loc={loc} liveWeights={liveWeights} h={h} setH={setH} />
+        </div>
+        <div className="h-full">
+          <TrustMapCard onView={() => setPage('Model Weights')} h={h} setH={setH} />
+        </div>
         <div className="xl:col-span-2">
-          <ExplainabilityCard loc={loc} h={h} liveWeights={liveWeights} />
+          <ExplainabilityCard loc={loc} h={h} setH={setH} liveWeights={liveWeights} />
         </div>
       </div>
     ),
     Verification: (
       <>
-        <VerificationScorecard loc={loc} liveVerification={liveVerification} />
-        <ExplainabilityCard loc={loc} h={h} liveWeights={liveWeights} />
+        <VerificationScorecard loc={loc} liveVerification={liveVerification} h={h} setH={setH} />
+        <ExplainabilityCard loc={loc} h={h} setH={setH} liveWeights={liveWeights} />
       </>
     ),
     'Case Studies': (
@@ -196,15 +209,15 @@ export default function App() {
         {CASES.map(c => (
           <Card key={c.t} c="p-4">
             <DemoTag />
-            <div className="mt-2 font-semibold">{c.t}</div>
-            <p className="text-xs text-slate-300">{c.d}</p>
+            <div className="mt-2 font-semibold text-slate-900 dark:text-white">{c.t}</div>
+            <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">{c.d}</p>
             <button
               onClick={() => {
                 const target = LOCATIONS.find(l => l.id === c.loc);
                 if (target) setLoc(target);
                 setPage('Overview');
               }}
-              className="mt-3 rounded bg-[#1d6dff] px-3 py-1 text-xs"
+              className="mt-3 inline-flex min-h-8 items-center rounded-md bg-[#1d6dff] px-3 text-xs !text-white font-semibold shadow-xs hover:bg-blue-600 transition-colors"
             >
               Open in dashboard
             </button>
@@ -215,13 +228,13 @@ export default function App() {
     Downloads: (
       <Card c="space-y-3 p-4">
         <DemoTag t={isBackendLive ? 'Live Parquet Export' : 'Prototype Data'} />
-        <div className="text-sm">
-          Export multi-model forecast data for {loc.name} (+{h}h).{' '}
+        <div className="text-sm text-slate-800 dark:text-slate-200">
+          Export multi-model forecast data for <b className="text-slate-900 dark:text-white">{loc.name}</b> (+{h}h).{' '}
           {isBackendLive
             ? 'Connected to operational SQLite/Parquet backend.'
             : 'Running in standalone heuristic demonstration mode.'}
         </div>
-        <button onClick={csv} className="mr-2 rounded bg-[#1d6dff] px-3 py-1.5 text-xs">
+        <button onClick={csv} className="mr-2 inline-flex min-h-9 items-center rounded-md bg-[#1d6dff] px-3 text-xs !text-white font-semibold shadow-xs hover:bg-blue-600 transition-colors">
           Time series trajectory (CSV)
         </button>
         <button
@@ -243,7 +256,7 @@ export default function App() {
               'application/json'
             )
           }
-          className="rounded bg-[#1d6dff] px-3 py-1.5 text-xs"
+          className="inline-flex min-h-9 items-center rounded-md bg-[#1d6dff] px-3 text-xs !text-white font-semibold shadow-xs hover:bg-blue-600 transition-colors"
         >
           Model Weights + Explainability (JSON)
         </button>
@@ -252,26 +265,24 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-slate-100 dark:bg-[#050c18]">
       <DashboardHeader
         now={now}
         onHow={() => setHow(true)}
-        isBackendLive={isBackendLive}
-        backendLatency={backendLatency}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar a={page} setA={setPage} theme={theme} setTheme={setTheme} />
-        <main className="flex-1 space-y-3 overflow-x-hidden overflow-y-auto p-3">
-          <Card c="grid gap-4 p-3 xl:grid-cols-[1.35fr_1fr_1.25fr]">
-            <div className="space-y-2">
-              <LocationSelector loc={loc} setLoc={setLoc} />
-              <QuickLocations loc={loc} setLoc={setLoc} />
-            </div>
-            <ForecastHorizon h={h} setH={setH} />
-            <WeatherParameterSelector param={param} setParam={setParam} />
-          </Card>
+        <main className="min-w-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto p-3">
+          <OperationalCommandStrip
+            loc={loc}
+            setLoc={setLoc}
+            h={h}
+            setH={setH}
+            param={param}
+            setParam={setParam}
+          />
           {views[page]}
-          <p className="pb-2 text-center text-[10px] text-slate-500">
+          <p className="pb-2 text-center text-[10px] text-slate-600 dark:text-slate-400 font-medium">
             {isBackendLive
               ? 'Connected to Backend (PS 26081) · Data from Open-Meteo & Parquet Weather Store · Operational Evaluation Benchmark'
               : 'Smart India Hackathon 2026 (PS 26081) · Hybrid AI-NWP Blending System · Standalone Mode'}
@@ -280,31 +291,35 @@ export default function App() {
       </div>
       {how && (
         <div
-          className="fixed inset-0 z-[3000] grid place-items-center bg-black/70"
+          className="fixed inset-0 z-[3000] grid place-items-center bg-black/60 backdrop-blur-xs p-4"
           onClick={() => setHow(false)}
         >
-          <Card c="w-[500px] p-5">
-            <div className="mb-3 flex justify-between">
-              <b>How Hybrid AI-NWP Blending Works</b>
-              <button onClick={() => setHow(false)}>
-                <X size={16} />
-              </button>
-            </div>
-            {FLOW.map((f, i) => (
-              <div key={i}>
-                <div
-                  className={`rounded border p-2 text-center text-sm ${
-                    i === 2
-                      ? 'border-cyan-400 bg-[#1d6dff]/30 font-bold'
-                      : 'border-[#172b4d] bg-[#071120]'
-                  }`}
-                >
-                  {f}
-                </div>
-                {i < 5 && <div className="text-center text-cyan-400">↓</div>}
+          <div onClick={e => e.stopPropagation()}>
+            <Card c="w-full max-w-[500px] p-5 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-200 dark:border-[#172b4d] pb-2">
+                <b className="text-base text-slate-900 dark:text-white">How Hybrid AI-NWP Blending Works</b>
+                <button onClick={() => setHow(false)} className="rounded p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                  <X size={16} />
+                </button>
               </div>
-            ))}
-          </Card>
+              <div className="space-y-1.5">
+                {FLOW.map((f, i) => (
+                  <div key={i}>
+                    <div
+                      className={`rounded-lg border p-2 text-center text-xs sm:text-sm transition-all ${
+                        i === 2
+                          ? 'border-blue-400 bg-blue-50 text-blue-900 font-bold dark:border-cyan-400 dark:bg-[#1d6dff]/30 dark:text-cyan-100'
+                          : 'border-slate-200 bg-slate-50 text-slate-800 dark:border-[#172b4d] dark:bg-[#071120] dark:text-slate-200'
+                      }`}
+                    >
+                      {f}
+                    </div>
+                    {i < 5 && <div className="text-center font-bold text-blue-600 dark:text-cyan-400 py-0.5">↓</div>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </div>

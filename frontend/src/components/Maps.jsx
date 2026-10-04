@@ -1,32 +1,88 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useRef} from 'react';
 import {MapContainer,Pane,GeoJSON,CircleMarker,Tooltip,useMap,useMapEvents} from 'react-leaflet';
 import {BaseLayers,BasemapSwitch,FieldOverlay,GradientLegend,renderField,makeRamp,rainAlpha,edgeFade,useStates,wxField} from './mapkit';
 import {Card,DemoTag} from './Panels';
-import {COLORS,MODELS,PARAMS,REGIONS,IMD_THRESHOLD,getForecast,getModelForecasts,dominant,riskLevel} from '../data/mockData';
-import {X} from 'lucide-react';
+import {COLORS,MODELS,PARAMS,REGIONS,IMD_THRESHOLD,getForecast,getModelForecasts,dominant,riskLevel,HORIZONS} from '../data/mockData';
+import {X, Clock, ChevronDown} from 'lucide-react';
 export const BINS=[[300,'#c026d3'],[200,'#dc2626'],[100,'#f97316'],[50,'#facc15'],[25,'#a3d63a'],[10,'#22c55e'],[5,'#22d3ee'],[1,'#3b82f6'],[0,'#1e3a8a']];
 export const colorFor=v=>(BINS.find(([t])=>v>=t)||BINS[8])[1];
 const CITIES=[['Delhi',28.61,77.21],['Mumbai',19.08,72.88],['Kolkata',22.57,88.36],['Chennai',13.08,80.27],['Bengaluru',12.97,77.59],['Hyderabad',17.39,78.49],['Lucknow',26.85,80.95],['Kochi',9.93,76.27],['Ahmedabad',23.02,72.57]];
 const RAMP=makeRamp(BINS),EXT=[5,66,38,99];
 const hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 function Fly({c}){const m=useMap();useEffect(()=>{m.flyTo(c,5,{duration:.8})},[c[0],c[1]]);return null;}
-export function ForecastMap({loc,param,h,layer,setLayer}){
+export function ForecastMap({loc,param,h,setH,layer,setLayer}){
  const mf=getModelForecasts(loc,param,h),v=layer==='Blended'?mf.Blended:mf[layer],peak=v/PARAMS[param].max*300,[base,setBase]=useState('dark');
+ const [timelineOpen,setTimelineOpen]=useState(false);
+ const timelineRef=useRef(null);
+ useEffect(()=>{
+  function handleClickOutside(e){
+   if(timelineRef.current && !timelineRef.current.contains(e.target)){
+    setTimelineOpen(false);
+   }
+  }
+  document.addEventListener('mousedown',handleClickOutside);
+  return()=>document.removeEventListener('mousedown',handleClickOutside);
+ },[]);
  const build=()=>renderField(EXT,(la,lo)=>{const d2=(la-loc.lat)**2+(lo-loc.lon)**2,n=Math.sin(la*1.7)*Math.cos(lo*2.1);
   const x=wxField(la,lo,loc,peak);
   const a=rainAlpha(x)*edgeFade(la,lo,EXT);if(a<=0)return null;const c=RAMP(x);return [c[0],c[1],c[2],a];},720);
  const states=useStates();
- return <Card c="relative overflow-hidden"><div className="absolute left-3 top-3 z-[1000] flex flex-wrap items-center gap-2"><span className="rounded bg-[#0a1628]/95 px-3 py-1.5 text-sm font-semibold">{layer} Forecast Heatmap — {PARAMS[param].label}</span><DemoTag/></div>
-  <div className="h-[470px]"><MapContainer center={[loc.lat,loc.lon]} zoom={5} minZoom={4} maxZoom={10} className="h-full w-full"><Fly c={[loc.lat,loc.lon]}/>
+ return <Card c="relative overflow-hidden flex flex-col h-full">
+  <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#172b4d] px-3 py-2 bg-slate-50/80 dark:bg-[#071120]/80 min-h-[48px]">
+   <div className="flex items-center gap-2">
+    <span className="rounded bg-[#0a1628]/95 px-3 py-1.5 text-sm font-semibold">{layer} Forecast Heatmap — {PARAMS[param].label}</span>
+   </div>
+   <DemoTag/>
+  </div>
+  <div className="h-[470px] relative">
+   {/* In-Map Floating Timeline Toggle Button */}
+   {setH && (
+    <div ref={timelineRef} className="absolute left-3 top-3 z-[1000]">
+     <button
+      onClick={(e)=>{e.stopPropagation();setTimelineOpen(!timelineOpen);}}
+      className="flex items-center gap-1.5 rounded-md border border-slate-300 dark:border-[#172b4d] bg-white/95 dark:bg-[#0a1628]/95 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-md hover:border-blue-500 hover:text-blue-600 dark:hover:text-cyan-300 backdrop-blur-sm transition-all cursor-pointer"
+      title="Toggle Forecast Timeline Horizon"
+     >
+      <Clock size={14} className="text-blue-600 dark:text-cyan-400 shrink-0"/>
+      <span>Timeline: <b className="text-blue-600 dark:text-cyan-300 font-bold">+{h}h</b></span>
+      <ChevronDown size={13} className={`text-slate-400 transition-transform duration-200 ${timelineOpen?'rotate-180':''}`}/>
+     </button>
+     {timelineOpen && (
+      <div
+       onClick={(e)=>e.stopPropagation()}
+       className="mt-1.5 w-44 rounded-lg border border-slate-200 dark:border-[#172b4d] bg-white/98 dark:bg-[#0a1628]/98 p-1.5 text-xs shadow-2xl backdrop-blur-md z-[1500]"
+      >
+       <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-[#172b4d] mb-1">
+        Forecast Horizon
+       </div>
+       {HORIZONS.map(val=>(
+        <button
+         key={val}
+         onClick={()=>{setH(val);setTimelineOpen(false);}}
+         className={`flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left font-medium transition-colors ${
+          val===h
+           ? 'bg-[#1d6dff] text-white font-bold shadow-xs'
+           : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#10213c]'
+         }`}
+        >
+         <span>+{val}h Lead ({val>=24?`Day ${Math.floor(val/24)}`:`${val}h`})</span>
+         {val===h && <span className="text-xs font-bold">✓</span>}
+        </button>
+       ))}
+      </div>
+     )}
+    </div>
+   )}
+   <MapContainer center={[loc.lat,loc.lon]} zoom={5} minZoom={4} maxZoom={10} className="h-full w-full"><Fly c={[loc.lat,loc.lon]}/>
    <Pane name="wx" style={{zIndex:250}}><FieldOverlay bounds={EXT} build={build} deps={[loc.id,param,h,layer]} opacity={.62} pane="wx"/></Pane>
    <Pane name="bd" style={{zIndex:350}}>{states&&<GeoJSON data={states} pane="bd" interactive={false} style={{color:'#e2e8f0',weight:.9,fill:false,opacity:.7}}/>}</Pane>
    <Pane name="lb" style={{zIndex:450}}/><BaseLayers kind={base}/>
    {CITIES.map(([n,la,lo])=><CircleMarker key={n} center={[la,lo]} radius={2.5} pathOptions={{color:'#fff',weight:1}}><Tooltip permanent direction="right" className="city">{n}</Tooltip></CircleMarker>)}
-   <CircleMarker center={[loc.lat,loc.lon]} radius={9} pathOptions={{color:'#fff',fillColor:'#2563eb',fillOpacity:1,weight:2}}><Tooltip permanent direction="top" offset={[0,-8]}>{loc.name}</Tooltip></CircleMarker></MapContainer></div>
-  <div className="absolute bottom-3 left-3 z-[1000] flex gap-1">{['Blended',...MODELS].map(m=><button key={m} onClick={()=>setLayer(m)} className={`rounded border px-3 py-1 text-xs ${m===layer?'border-blue-400 bg-[#1d6dff]':'border-[#172b4d] bg-[#0a1628]/95'}`}>{m}</button>)}</div>
+   <CircleMarker center={[loc.lat,loc.lon]} radius={9} pathOptions={{color:'#fff',fillColor:'#2563eb',fillOpacity:1,weight:2}}><Tooltip permanent direction="top" offset={[0,-8]}>{loc.name}</Tooltip></CircleMarker></MapContainer>
+  <div className="absolute bottom-3 left-3 z-[1000] flex gap-1">{['Blended',...MODELS].map(m=><button key={m} onClick={()=>setLayer(m)} className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${m===layer?'border-blue-400 bg-[#1d6dff] text-white font-semibold':'border-[#172b4d] bg-[#0a1628]/95 text-slate-300 hover:text-white'}`}>{m}</button>)}</div>
   <BasemapSwitch kind={base} setKind={setBase} className="absolute right-3 bottom-8"/>
   <GradientLegend BINS={BINS} title={`${PARAMS[param].label} (${PARAMS[param].unit}, scaled)`} className="absolute bottom-14 left-3"/>
-  <LocationForecastPanel loc={loc} param={param} h={h}/></Card>;
+  <LocationForecastPanel loc={loc} param={param} h={h}/></div></Card>;
 }
 export function LocationForecastPanel({loc,param,h}){
  const [open,setOpen]=useState(true);useEffect(()=>setOpen(true),[loc.id]);

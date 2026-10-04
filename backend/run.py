@@ -58,10 +58,14 @@ def run_audit():
     return run_deep_audit()
 
 
-def run_api(host: str = "127.0.0.1", port: int = 8000):
+def run_api(host: str = "127.0.0.1", port: int = 8000, reload: bool = False):
     print(f">>> [RUNNER] STARTING FASTAPI BACKEND SERVER (http://{host}:{port}) <<<")
     import uvicorn
-    uvicorn.run("api:app", host=host, port=port, reload=True)
+    if reload:
+        uvicorn.run("api:app", host=host, port=port, reload=True)
+    else:
+        from api import app
+        uvicorn.run(app, host=host, port=port)
 
 
 def main():

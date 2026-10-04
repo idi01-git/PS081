@@ -1,10 +1,20 @@
 # Dependencies
-node_modules
+node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
+# Python Virtual Environments
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
 # Production build
-dist
+dist/
+**/dist/
 dist-ssr
 *.local
 

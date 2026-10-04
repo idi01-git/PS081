@@ -27,8 +27,8 @@ export function BaseLayers({kind}){
 }
 
 export function BasemapSwitch({kind,setKind,className='absolute left-3 bottom-3'}){
- return <div className={`${className} z-[1000] flex overflow-hidden rounded border border-[#172b4d] bg-[#0a1628]/95 text-[11px]`}>
-  {Object.entries(BASEMAPS).map(([k,v])=><button key={k} onClick={()=>setKind(k)} className={`px-2.5 py-1 ${k===kind?'bg-[#1d6dff]':'hover:bg-[#10213c]'}`}>{v.label}</button>)}
+ return <div className={`${className} z-[1000] flex overflow-hidden rounded-lg border border-slate-200 dark:border-[#172b4d] bg-white/95 dark:bg-[#0a1628]/95 shadow-md text-[11px]`}>
+  {Object.entries(BASEMAPS).map(([k,v])=><button key={k} onClick={()=>setKind(k)} className={`px-2.5 py-1 font-semibold transition-colors ${k===kind?'bg-[#1d6dff] !text-white':'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#10213c]'}`}>{v.label}</button>)}
  </div>;
 }
 
@@ -86,10 +86,10 @@ export const edgeFade=(la,lo,[s,w,n,e],m=1.5)=>Math.max(0,Math.min(1,(la-s)/m,(n
 // Gradient legend used by the precipitation maps.
 export function GradientLegend({BINS,title,className}){
  const asc=[...BINS].reverse(),grad=asc.map(([,c],i)=>`${c} ${(i/(asc.length-1)*100).toFixed(1)}%`).join(',');
- return <div className={`${className} z-[1000] rounded border border-[#172b4d] bg-[#0a1628]/95 p-2 text-[10px]`}>
-  <div className="mb-1 font-semibold">{title}</div>
+ return <div className={`${className} z-[1000] rounded-lg border border-slate-200 dark:border-[#172b4d] bg-white/95 dark:bg-[#0a1628]/95 p-2 text-[10px] text-slate-800 dark:text-slate-200 shadow-md`}>
+  <div className="mb-1 font-bold text-slate-900 dark:text-white">{title}</div>
   <div className="flex gap-2"><div className="w-3 rounded-sm" style={{background:`linear-gradient(to top,${grad})`,height:BINS.length*15}}/>
-   <div className="flex flex-col-reverse justify-between" style={{height:BINS.length*15}}>{asc.map(([t],i)=><div key={t} className="leading-[15px]">{t===0?'0':t===300?'300+':`${t}–${asc[i+1][0]}`}</div>)}</div></div>
+   <div className="flex flex-col-reverse justify-between font-mono text-slate-700 dark:text-slate-300" style={{height:BINS.length*15}}>{asc.map(([t],i)=><div key={t} className="leading-[15px]">{t===0?'0':t===300?'300+':`${t}–${asc[i+1][0]}`}</div>)}</div></div>
  </div>;
 }
 
