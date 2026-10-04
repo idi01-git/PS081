@@ -161,7 +161,7 @@ export default function App() {
             <ExtremeAlert loc={loc} value={forecastValue} param={param} h={h} liveAlert={liveAlert} />
           </div>
           <div className="xl:col-span-4 h-full">
-            <ConsensusCard loc={loc} liveAlert={liveAlert} />
+            <ConsensusCard loc={loc} liveAlert={liveAlert} param={param} h={h} liveForecast={liveForecast} liveWeights={liveWeights} />
           </div>
           <div className="md:col-span-2 xl:col-span-4 h-full">
             <HazardMatrixCard loc={loc} />

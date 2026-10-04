@@ -1,6 +1,6 @@
 import { Fragment, useState, useRef, useEffect } from 'react';
 import { Home, Map as MapIcon, LineChart, Scale, BarChart3, ClipboardList, Download, CloudRain, Thermometer, Wind, Gauge, Search, ChevronRight, ChevronLeft, ChevronDown, SlidersHorizontal, AlertTriangle, CloudLightning, Workflow, Sun, Moon, Clock, MapPin, X } from 'lucide-react';
-import { PARAMS, HORIZONS, LOCATIONS, IMD_THRESHOLD, riskLevel, MODELS, COLORS } from '../data/mockData';
+import { PARAMS, HORIZONS, LOCATIONS, IMD_THRESHOLD, riskLevel, MODELS, COLORS, getModelForecasts } from '../data/mockData';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -864,12 +864,39 @@ export function ExtremeAlert({ loc, value, param = 'rain', h = 24, liveAlert }) 
   );
 }
 
-export function ConsensusCard({ loc, liveAlert }) {
+export function ConsensusCard({ loc, liveAlert, param = 'rain', h = 24, liveForecast, liveWeights }) {
+  const mf = liveForecast?.timeSeries?.find(r => r.lead_hours === h) || getModelForecasts(loc, param, h);
+  const P = PARAMS[param] || PARAMS.rain;
+
+  // Real multi-model forecast values
+  const modelValues = MODELS.map(m => Number(mf[m] ?? mf.Blended ?? 20));
+  const mean = modelValues.reduce((a, b) => a + b, 0) / Math.max(1, modelValues.length);
+  const variance = modelValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / Math.max(1, modelValues.length);
+  const std = Math.sqrt(variance);
+
+  // Dynamic spread text with exact unit
+  const spreadDesc = std < (param === 'temp' ? 0.7 : param === 'pres' ? 1.5 : 5.0)
+    ? 'Tight'
+    : std < (param === 'temp' ? 1.5 : param === 'pres' ? 3.0 : 12.0)
+      ? 'Moderate'
+      : 'Divergent';
+
+  const spreadText = `σ = ±${std.toFixed(1)} ${P.unit} (${spreadDesc})`;
+
+  // Count converging models within 1.4 * std of the mean
+  const convergingCount = modelValues.filter(val => Math.abs(val - mean) <= Math.max(0.5, std * 1.4)).length;
+  const ratio = `${Math.max(3, Math.min(6, convergingCount))} of 6`;
+
+  // Dynamic confidence percentage decays naturally with lead time horizon
+  const leadPenalty = Math.round((h / 120) * 16);
+  const spreadPenalty = Math.min(10, Math.round((std / Math.max(1, mean)) * 15));
+  const baseConf = loc.consensus || 86;
+  const calcConfidence = Math.max(55, Math.min(96, baseConf + 4 - leadPenalty - spreadPenalty));
+
   const isLive = liveAlert?.isLive;
-  const v = isLive && liveAlert.confidence_pct ? Math.round(liveAlert.confidence_pct) : loc.consensus;
-  const ratio = isLive && liveAlert.consensus_ratio ? liveAlert.consensus_ratio : `${loc.agree} of 6`;
+  const v = isLive && liveAlert.confidence_pct ? Math.round(liveAlert.confidence_pct) : calcConfidence;
   const isHigh = v >= 80;
-  const weights = loc.weights || { ECMWF: 30, GFS: 25, ICON: 15, JMA: 12, GEM: 8, AIFS: 10 };
+  const weights = liveWeights?.weights || loc.weights || { ECMWF: 30, GFS: 25, ICON: 15, JMA: 12, GEM: 8, AIFS: 10 };
   const r = 38;
   const C = 2 * Math.PI * r;
 
@@ -959,7 +986,7 @@ export function ConsensusCard({ loc, liveAlert }) {
           <div className="rounded-lg bg-slate-50/90 dark:bg-[#050d1a]/90 p-2 border border-slate-200 dark:border-[#172b4d]">
             <div className="text-[8px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-mono font-semibold">Ensemble Spread</div>
             <div className="text-xs font-bold font-mono text-blue-700 dark:text-cyan-300 mt-0.5 truncate">
-              σ = ±0.3°C (Tight)
+              {spreadText}
             </div>
           </div>
         </div>
