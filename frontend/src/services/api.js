@@ -5,7 +5,7 @@
  * 2. In-Memory Response Caching: Repeat visits load instantaneously with 0 network latency.
  * 3. Non-Blocking Live Server Sync: Background telemetry upgrades with AbortSignal support.
  */
-import { LOCATIONS, MODELS, PARAMS, getTimeSeries, getForecast, riskLevel } from '../data/mockData';
+import { LOCATIONS, MODELS, PARAMS, getTimeSeries, getForecast, dominant, riskLevel } from '../data/mockData';
 import backendSnapshot from '../data/backendData.json';
 
 const API_BASE = (import.meta.env?.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api';
