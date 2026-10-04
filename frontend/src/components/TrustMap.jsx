@@ -3,10 +3,10 @@ import {MapContainer,Pane,GeoJSON} from 'react-leaflet';
 import {Info,Clock,ChevronDown} from 'lucide-react';
 import {Card,DemoTag} from './Panels';
 import {BaseLayers,BasemapSwitch,useStates} from './mapkit';
-import {COLORS,MODELS,REGIONS,dominant,HORIZONS} from '../data/mockData';
+import {COLORS,MODELS,REGIONS,LOCATIONS,dominant,getDynamicWeights,HORIZONS} from '../data/mockData';
 const PANES=[['wx',250],['bd',350],['lb',450],['mk',600]];
 const Pn=()=>PANES.map(([n,z])=><Pane key={n} name={n} style={{zIndex:z}}/>);
-export function TrustMapCard({onView,height='h-[420px]',h=24,setH}){
+export function TrustMapCard({onView,height='h-[420px]',h=24,setH,param='rain'}){
  const states=useStates(),[sel,setSel]=useState(null),[base,setBase]=useState('satellite');
  const [timelineOpen,setTimelineOpen]=useState(false);
  const timelineRef=useRef(null);
@@ -21,9 +21,18 @@ export function TrustMapCard({onView,height='h-[420px]',h=24,setH}){
   return()=>document.removeEventListener('mousedown',handleClickOutside);
  },[]);
 
- const reg=useMemo(()=>{if(!states)return{};const o={};states.features.forEach(f=>{const r=f.geometry.coordinates.reduce((a,b)=>b[0].length>a[0].length?b:a)[0];
-  const la=r.reduce((s,p)=>s+p[1],0)/r.length,lo=r.reduce((s,p)=>s+p[0],0)/r.length;
-  o[f.properties.name]=REGIONS.reduce((b,x)=>((x.lat-la)**2+(x.lon-lo)**2<(b.lat-la)**2+(b.lon-lo)**2?x:b));});return o;},[states]);
+ const reg=useMemo(()=>{
+  if(!states)return{};
+  const o={};
+  states.features.forEach(f=>{
+   const r=f.geometry.coordinates.reduce((a,b)=>b[0].length>a[0].length?b:a)[0];
+   const la=r.reduce((s,p)=>s+p[1],0)/r.length,lo=r.reduce((s,p)=>s+p[0],0)/r.length;
+   const nearest=LOCATIONS.reduce((b,x)=>((x.lat-la)**2+(x.lon-lo)**2<(b.lat-la)**2+(b.lon-lo)**2?x:b));
+   const dynW = getDynamicWeights(nearest, param, h);
+   o[f.properties.name]={ name: nearest.name, lat: nearest.lat, lon: nearest.lon, w: dynW };
+  });
+  return o;
+ },[states, param, h]);
  const share=MODELS.map(m=>[m,Object.values(reg).filter(r=>dominant(r.w)===m).length]),tot=Object.keys(reg).length||1;
  return <Card c="relative overflow-hidden flex flex-col h-full">
   <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#172b4d] px-3 py-2 bg-slate-50/80 dark:bg-[#071120]/80 min-h-[48px]">

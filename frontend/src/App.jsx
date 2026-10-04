@@ -117,7 +117,7 @@ export default function App() {
           fetchForecastData(loc.id, param, h, controller.signal),
           fetchModelWeights(loc.id, param, h, controller.signal),
           fetchVerificationScorecard(param, controller.signal),
-          fetchAlerts(loc.id, param, controller.signal)
+          fetchAlerts(loc.id, param, h, controller.signal)
         ]);
         if (!controller.signal.aborted) {
           if (fc) setLiveForecast(fc);
@@ -164,13 +164,13 @@ export default function App() {
             <ConsensusCard loc={loc} liveAlert={liveAlert} param={param} h={h} liveForecast={liveForecast} liveWeights={liveWeights} />
           </div>
           <div className="md:col-span-2 xl:col-span-4 h-full">
-            <HazardMatrixCard loc={loc} />
+            <HazardMatrixCard loc={loc} param={param} h={h} liveForecast={liveForecast} />
           </div>
         </div>
         <div className="grid gap-3 xl:grid-cols-5 items-stretch">
           <div className="xl:col-span-3 h-full">{map('h-[420px]')}</div>
           <div className="xl:col-span-2 h-full">
-            <TrustMapCard onView={() => setPage('Model Weights')} height="h-[420px]" h={h} setH={setH} />
+            <TrustMapCard onView={() => setPage('Model Weights')} height="h-[420px]" h={h} setH={setH} param={param} />
           </div>
         </div>
         <div className="grid gap-3 xl:grid-cols-5 items-stretch">
@@ -195,7 +195,7 @@ export default function App() {
       <div className="grid gap-3 xl:grid-cols-5 items-stretch">
         <div className="xl:col-span-3 h-full">{map('h-[560px]')}</div>
         <div className="xl:col-span-2 h-full">
-          <TrustMapCard onView={() => setPage('Model Weights')} height="h-[560px]" h={h} setH={setH} />
+          <TrustMapCard onView={() => setPage('Model Weights')} height="h-[560px]" h={h} setH={setH} param={param} />
         </div>
       </div>
     ),
@@ -211,7 +211,7 @@ export default function App() {
           <ModelWeightChart loc={loc} liveWeights={liveWeights} h={h} setH={setH} />
         </div>
         <div className="h-full">
-          <TrustMapCard onView={() => setPage('Model Weights')} h={h} setH={setH} />
+          <TrustMapCard onView={() => setPage('Model Weights')} h={h} setH={setH} param={param} />
         </div>
         <div className="xl:col-span-2">
           <ExplainabilityCard loc={loc} h={h} setH={setH} liveWeights={liveWeights} />

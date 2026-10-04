@@ -5,7 +5,7 @@
  * 2. In-Memory Response Caching: Repeat visits load instantaneously with 0 network latency.
  * 3. Non-Blocking Live Server Sync: Background telemetry upgrades with AbortSignal support.
  */
-import { LOCATIONS, MODELS, PARAMS, getTimeSeries, getForecast, dominant, riskLevel } from '../data/mockData';
+import { LOCATIONS, MODELS, PARAMS, getTimeSeries, getForecast, dominant, riskLevel, getDynamicWeights } from '../data/mockData';
 import backendSnapshot from '../data/backendData.json';
 
 const API_BASE = (import.meta.env?.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api';
@@ -64,14 +64,14 @@ export function getImmediateForecast(loc, param = 'rain', horizon = 24) {
 
 export function getImmediateWeights(loc, param = 'rain', horizon = 24) {
   const locObj = resolveLocation(loc);
-  const rawWeights = locObj.weights || { ECMWF: 35, GFS: 20, ICON: 18, JMA: 8, GEM: 9, AIFS: 10 };
+  const rawWeights = getDynamicWeights(locObj, param, horizon);
   const dom = dominant(rawWeights);
 
   const reasons = {
-    ECMWF: 'ECMWF IFS achieves superior synoptic correlation and lowest root-mean-square error in this climate zone.',
-    GFS: 'GFS captures convective moisture convergence and sea-breeze inland penetration with high skill.',
-    AIFS: 'ECMWF AIFS deep neural network exhibits exceptional skill in complex topography and boundary layer transitions.',
-    ICON: 'DWD ICON non-hydrostatic grid provides optimal high-resolution surface wind and pressure resolution.'
+    ECMWF: `${param === 'pres' ? 'ECMWF IFS barometric mass conservation' : 'ECMWF IFS ensemble mean'} achieves highest synoptic skill for ${param.toUpperCase()} in ${locObj.name} (${rawWeights.ECMWF}%).`,
+    GFS: `GFS captures convective convergence and boundary layer thermal profiles with high skill for ${param.toUpperCase()} (${rawWeights.GFS}%).`,
+    AIFS: `ECMWF AIFS deep neural network exhibits exceptional skill in complex terrain and rapid inference (${rawWeights.AIFS}%).`,
+    ICON: `DWD ICON non-hydrostatic icosahedral grid provides optimal surface wind and turbulence resolution (${rawWeights.ICON}%).`
   };
 
   return {
@@ -79,7 +79,7 @@ export function getImmediateWeights(loc, param = 'rain', horizon = 24) {
     weights: rawWeights,
     dominantModel: dom,
     explainability: {
-      reason: reasons[dom] || `${dom} receives the highest dynamic Bayesian weight (${rawWeights[dom]}%) based on 30-day rolling verification.`
+      reason: reasons[dom] || `${dom} receives the highest dynamic Bayesian weight (${rawWeights[dom]}%) based on multi-parameter verification.`
     }
   };
 }
@@ -145,14 +145,27 @@ export function getImmediateAlerts(loc, param = 'rain', horizon = 24) {
   const val = getForecast(locObj, param, horizon);
   const lvl = riskLevel(val, param, locObj);
 
-  let guidance = `Forecast parameters for ${locObj.name} evaluated against IMD seasonal thresholds.`;
+  // Dynamic confidence decays with lead time horizon and spread
+  const baseConf = locObj.consensus || 88;
+  const leadPenalty = Math.round((horizon / 120) * 22);
+  const dynConfidence = Math.max(58, Math.min(96, baseConf + 4 - leadPenalty));
+
+  // Dynamic accord ratio: drops at extended forecast horizons
+  const converging = horizon <= 24 ? (locObj.agree || 5) : horizon <= 72 ? Math.max(4, (locObj.agree || 5) - 1) : Math.max(3, (locObj.agree || 5) - 2);
+
+  let guidance = `Operational IMD criteria evaluated for ${locObj.name} at +${horizon}h lead.`;
   if (lvl === 'CRITICAL' || lvl === 'WARNING') {
-    if (param === 'rain') guidance = `Extreme torrential deluge expected at ${locObj.name}. Red warning issued for localized inundation.`;
-    else if (param === 'temp') guidance = `Dangerous thermal boundary anomaly at ${locObj.name}. Severe heatwave conditions active.`;
-    else if (param === 'wind') guidance = `Gale-force maritime squall expected at ${locObj.name}. Suspend maritime operations.`;
-    else guidance = `Severe cyclonic barometric depression detected near ${locObj.name}.`;
+    if (param === 'rain') guidance = `Severe deluge & flash flood warning (${val} mm) at +${horizon}h lead. Evacuation preparedness and regional drainage response active for ${locObj.name}.`;
+    else if (param === 'temp') guidance = `Severe heatwave warning (${val}°C) at +${horizon}h lead. Extreme boundary layer thermal anomaly; outdoor labor restrictions active for ${locObj.name}.`;
+    else if (param === 'wind') guidance = `Gale-force wind warning (${val} km/h) at +${horizon}h lead. Squally surface gusts expected across ${locObj.name}.`;
+    else guidance = `Deep cyclonic pressure depression (${val} hPa) at +${horizon}h lead. Barometric drop active near ${locObj.name}.`;
   } else if (lvl === 'WATCH') {
-    guidance = `Advisory conditions active at ${locObj.name}. Monitor Doppler radar updates and convective tracking.`;
+    if (param === 'rain') guidance = `Precipitation watch (${val} mm) at +${horizon}h lead. Monitor Doppler convective echoes for ${locObj.name}.`;
+    else if (param === 'temp') guidance = `Thermal anomaly watch (${val}°C) at +${horizon}h lead. Hydration and agricultural heat advisories active.`;
+    else if (param === 'wind') guidance = `Elevated wind shear watch (${val} km/h) at +${horizon}h lead across ${locObj.name}.`;
+    else guidance = `Developing low pressure trough (${val} hPa) at +${horizon}h lead for ${locObj.name}.`;
+  } else {
+    guidance = `${PARAMS[param]?.label || 'Meteorological variable'} (${val} ${PARAMS[param]?.unit || ''}) nominal at +${horizon}h lead for ${locObj.name}.`;
   }
 
   return {
@@ -162,8 +175,8 @@ export function getImmediateAlerts(loc, param = 'rain', horizon = 24) {
     alert_level: lvl === 'CRITICAL' ? 'WARNING' : lvl,
     variable: varName,
     blended_value: val,
-    consensus_ratio: `${locObj.agree || 5} of 6`,
-    confidence_pct: locObj.consensus || 86,
+    consensus_ratio: `${converging} of 6`,
+    confidence_pct: dynConfidence,
     guidance_note: guidance,
     risks: locObj.primary_risks || ['Extreme Weather', 'Flash Floods']
   };
@@ -297,14 +310,14 @@ export async function fetchVerificationScorecard(param, signal) {
   return null;
 }
 
-export async function fetchAlerts(locId, param = 'rain', signal = null) {
-  const cacheKey = `al_${locId}_${param}`;
+export async function fetchAlerts(locId, param = 'rain', horizon = 24, signal = null) {
+  const cacheKey = `al_${locId}_${param}_${horizon}`;
   if (apiCache.has(cacheKey)) {
     return apiCache.get(cacheKey);
   }
 
   try {
-    const res = await fetch(`${API_BASE}/alerts?location=${encodeURIComponent(locId)}&variable=${encodeURIComponent(param)}`, {
+    const res = await fetch(`${API_BASE}/alerts?location=${encodeURIComponent(locId)}&variable=${encodeURIComponent(param)}&lead_time=${horizon}`, {
       signal: signal || AbortSignal.timeout(2500)
     });
     if (res.ok) {
