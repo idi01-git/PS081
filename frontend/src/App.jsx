@@ -117,7 +117,7 @@ export default function App() {
           fetchForecastData(loc.id, param, h, controller.signal),
           fetchModelWeights(loc.id, param, h, controller.signal),
           fetchVerificationScorecard(param, controller.signal),
-          fetchAlerts(loc.id, controller.signal)
+          fetchAlerts(loc.id, param, controller.signal)
         ]);
         if (!controller.signal.aborted) {
           if (fc) setLiveForecast(fc);

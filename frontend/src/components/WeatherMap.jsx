@@ -197,7 +197,7 @@ export function WeatherMap({loc,param,h,setH,layer,setLayer,height='h-[420px]'})
             <CircleMarker center={[loc.lat,loc.lon]} radius={9} pane="mk" pathOptions={{color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}}>
               <Popup>
                 <div className="text-xs text-slate-800">
-                  <b>{loc.name}</b><br/>Forecast: {v} {u}<br/>Risk: {param==='rain'?(riskLevel(v)==='HIGH RISK'?'Heavy Rain':riskLevel(v)):'—'}<br/>Lead Time: +{h}h
+                  <b>{loc.name}</b><br/>Forecast: {v} {u}<br/>Risk: {param==='rain' ? (v >= 115.5 ? 'Extreme Deluge' : v >= 64.5 ? 'Heavy Rain' : v >= 35.5 ? 'Moderate Rain' : 'Light Rain') : riskLevel(v, param, loc)}<br/>Lead Time: +{h}h
                 </div>
               </Popup>
             </CircleMarker>

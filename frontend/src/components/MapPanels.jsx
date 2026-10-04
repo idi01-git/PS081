@@ -37,7 +37,7 @@ export function ForecastMapCard({loc,param,h,layer,setLayer,height='h-[380px]'})
     <div className="text-[10px] text-slate-400">{loc.lat.toFixed(4)}°N, {loc.lon.toFixed(4)}°E</div>
     <div className="mt-3 text-slate-300">Forecast (+{h}h)</div>
     <div className="my-1 flex items-center gap-2"><span className="text-3xl font-semibold">{mf.Blended}</span><span className="text-slate-400">{P.unit}</span>
-     {param==='rain'&&<span className="ml-auto rounded bg-red-600/30 px-2 py-0.5 text-red-300">{{'HIGH RISK':'Heavy Rain',MODERATE:'Moderate Rain',LOW:'Light Rain'}[riskLevel(mf.Blended)]}</span>}</div>
+     {param==='rain'&&<span className="ml-auto rounded bg-red-600/30 px-2 py-0.5 text-red-300">{{'CRITICAL':'Heavy Rain','WARNING':'Heavy Rain','WATCH':'Moderate Rain','NOMINAL':'Light Rain','HIGH RISK':'Heavy Rain','MODERATE':'Moderate Rain','LOW':'Light Rain'}[riskLevel(mf.Blended)] || 'Nominal'}</span>}</div>
     <div className="mt-2 flex justify-between border-b border-[#1e3252] py-1 text-slate-400"><span>Model</span><span>Forecast ({P.unit})</span></div>
     {Object.entries(mf).map(([m,x])=><div key={m} className={`relative my-1 flex justify-between overflow-hidden rounded border py-1 pl-3 pr-2 ${m==='Blended'?'border-blue-500 bg-blue-600/25':'border-transparent bg-[#0a1526]'}`}><i className="absolute inset-y-0 left-0 w-1" style={{background:COLORS[m]}}/><span>{m}</span><b>{x}</b></div>)}
     {param==='rain'&&<div className="mt-2 flex items-center gap-1 text-[10px] text-slate-400"><Info size={12}/>IMD Threshold (Heavy): {IMD_THRESHOLD} mm/24h</div>}</div>}</div></Card>;

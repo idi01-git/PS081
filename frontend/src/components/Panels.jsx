@@ -668,59 +668,104 @@ export const WeatherParameterSelector = ({ param, setParam }) => (
   </div>
 );
 
-export function ExtremeAlert({ loc, value, param, h, liveAlert }) {
-  const isRain = param === 'rain';
-  const isLive = isRain && liveAlert?.isLive;
-  const P = PARAMS[param];
-  const localLevel = isRain
-    ? riskLevel(value)
-    : param === 'temp'
-      ? (value >= 40 ? 'HIGH RISK' : value >= 35 ? 'WATCH' : 'LOW')
-      : param === 'wind'
-        ? (value >= 50 ? 'HIGH RISK' : value >= 35 ? 'WATCH' : 'LOW')
-        : 'LOW';
-  const lvl = isLive ? liveAlert.alert_level : localLevel;
-  const isCritical = lvl === 'HIGH RISK' || lvl === 'CRITICAL' || lvl === 'WARNING';
-  const isWatch = lvl === 'WATCH' || lvl === 'MODERATE';
-  const displayVal = isLive && liveAlert.blended_value !== undefined ? liveAlert.blended_value : value;
+export function ExtremeAlert({ loc, value, param = 'rain', h = 24, liveAlert }) {
+  const P = PARAMS[param] || PARAMS.rain;
+  const displayVal = Number(value !== undefined ? value : loc?.base?.[param] ?? 20);
 
-  const headline = isLive && liveAlert.guidance_note
-    ? liveAlert.guidance_note
-    : isRain
-      ? isCritical
-        ? 'Severe Convective / Heavy Rain Alert'
-        : isWatch
-          ? 'Moderate Precipitation Advisory'
-          : 'Precipitation Within Seasonal Baseline'
-      : param === 'temp'
-        ? isCritical
-          ? 'Extreme Heatwave Warning'
-          : isWatch
-            ? 'Elevated Thermal Anomaly Watch'
-            : 'Temperatures Within Seasonal Normal'
-        : param === 'wind'
-          ? isCritical
-            ? 'Gale Force Wind Warning'
-            : isWatch
-              ? 'Elevated Wind Shear Watch'
-              : 'Wind Velocities Within Normal Range'
-          : 'Barometric Pressure Field Stable';
+  // 1. Calculate Threat Index & Severity Level based on scientific IMD standards
+  let thresholdVal = 64.5;
+  let pctOfThreshold = 0;
+  let severity = 'NOMINAL'; // 'NOMINAL' | 'WATCH' | 'WARNING'
+  let headline = '';
+  let guidanceText = '';
 
-  const guidanceText = isCritical
-    ? 'Immediate operational response recommended; alert regional emergency operations center.'
-    : isWatch
-      ? 'Synoptic watch active; verify local Doppler radar echoes and ensemble spread.'
-      : 'Climatological baseline satisfied; routine synoptic observation in progress.';
+  if (param === 'rain') {
+    thresholdVal = 64.5; // IMD Heavy Rain Threshold (>64.5mm/24h)
+    pctOfThreshold = Math.min(100, Math.round((displayVal / thresholdVal) * 100));
+    if (displayVal >= 115.5 || pctOfThreshold >= 95) {
+      severity = 'WARNING';
+      headline = `Severe Deluge / Torrential Flood Alert (${displayVal} mm)`;
+      guidanceText = `Precipitation exceeds IMD Very Heavy Rain threshold (64.5mm). Immediate regional flood response alert triggered for ${loc.name}.`;
+    } else if (displayVal >= 35.5 || pctOfThreshold >= 55) {
+      severity = 'WATCH';
+      headline = `Moderate Precipitation Advisory (${displayVal} mm)`;
+      guidanceText = `Significant convective rainbands approaching ${loc.name}. Monitor stormwater drainage channels and Doppler radar echoes.`;
+    } else {
+      severity = 'NOMINAL';
+      headline = `Precipitation Nominal (${displayVal} mm)`;
+      guidanceText = `Rainfall accumulation within seasonal baseline limits for ${loc.zone}.`;
+    }
+  } else if (param === 'temp') {
+    thresholdVal = 40.0; // IMD Heatwave Threshold (>40°C in plains)
+    // Anomaly baseline: for heat, 28°C is normal baseline, 43°C+ is extreme heatwave
+    pctOfThreshold = displayVal <= 28 ? 12 : Math.min(100, Math.round(((displayVal - 28) / (43 - 28)) * 100));
+    if (displayVal >= 42.0 || pctOfThreshold >= 85) {
+      severity = 'WARNING';
+      headline = `Severe Heatwave Warning (${displayVal}°C)`;
+      guidanceText = `Extreme boundary-layer thermal anomaly at ${loc.name}. IMD Red alert conditions: limit daytime outdoor operations.`;
+    } else if (displayVal >= 37.5 || pctOfThreshold >= 55) {
+      severity = 'WATCH';
+      headline = `Thermal Anomaly / Heat Watch (${displayVal}°C)`;
+      guidanceText = `Elevated daytime temperatures at ${loc.name}. Hydration and agricultural thermal advisories active.`;
+    } else {
+      severity = 'NOMINAL';
+      headline = `Temperatures Seasonal Normal (${displayVal}°C)`;
+      guidanceText = `Surface thermal profile well within 30-year climatological normal for ${loc.zone}.`;
+    }
+  } else if (param === 'wind') {
+    thresholdVal = 50.0; // IMD Strong Breeze / Gale Threshold (>50 km/h)
+    pctOfThreshold = Math.min(100, Math.round((displayVal / thresholdVal) * 100));
+    if (displayVal >= 55.0 || pctOfThreshold >= 85) {
+      severity = 'WARNING';
+      headline = `Gale-Force Wind Warning (${displayVal} km/h)`;
+      guidanceText = `Squally maritime surface winds expected at ${loc.name}. Advise coastal marine suspension and secure loose infrastructure.`;
+    } else if (displayVal >= 35.0 || pctOfThreshold >= 55) {
+      severity = 'WATCH';
+      headline = `Elevated Wind Shear Advisory (${displayVal} km/h)`;
+      guidanceText = `Moderate boundary-layer wind gusts across ${loc.name}. Monitor aviation approach and port container sectors.`;
+    } else {
+      severity = 'NOMINAL';
+      headline = `Wind Velocities Nominal (${displayVal} km/h)`;
+      guidanceText = `Surface wind vector within normal operational bounds for ${loc.zone}.`;
+    }
+  } else if (param === 'pres') {
+    const normalPres = loc.normalPres || 1008.0;
+    const drop = Math.max(0, normalPres - displayVal);
+    thresholdVal = Math.round(normalPres);
+    // Pressure deficit: 10 hPa drop = 100% cyclone threat
+    pctOfThreshold = Math.min(100, Math.round((drop / 10.0) * 100));
+    if (drop >= 8.0 || pctOfThreshold >= 80) {
+      severity = 'WARNING';
+      headline = `Deep Cyclonic Pressure Deficit (${displayVal} hPa)`;
+      guidanceText = `Barometric pressure dropped ${drop.toFixed(1)} hPa below station normal (${normalPres} hPa). Tropical depression/cyclone circulation active!`;
+    } else if (drop >= 4.0 || pctOfThreshold >= 45) {
+      severity = 'WATCH';
+      headline = `Synoptic Low Pressure Watch (${displayVal} hPa)`;
+      guidanceText = `Barometric pressure is ${drop.toFixed(1)} hPa below normal. Low pressure trough developing over ${loc.name}.`;
+    } else {
+      severity = 'NOMINAL';
+      headline = `Barometric Field Stable (${displayVal} hPa)`;
+      guidanceText = `Surface pressure normal for ${loc.name} elevation (${loc.elevation || 10}m ASL).`;
+    }
+  }
 
-  const thresholdVal = isRain ? IMD_THRESHOLD : param === 'temp' ? 35 : param === 'wind' ? 40 : 1013;
-  const pctOfThreshold = Math.min(100, Math.round((Number(displayVal) / thresholdVal) * 100));
+  // Override with server alert if server sends an explicit live alert
+  if (liveAlert?.isLive && liveAlert?.alert_level && liveAlert.alert_level !== 'NONE') {
+    severity = liveAlert.alert_level === 'CRITICAL' || liveAlert.alert_level === 'WARNING' ? 'WARNING' : 'WATCH';
+    if (liveAlert.guidance_note) headline = liveAlert.guidance_note;
+  }
+
+  // Guaranteed synchronization: Threat Index >= 80% is ALWAYS WARNING/CRITICAL, >= 50% is ALWAYS WATCH
+  const isCritical = severity === 'WARNING' || pctOfThreshold >= 80;
+  const isWatch = !isCritical && (severity === 'WATCH' || pctOfThreshold >= 50);
+  const badgeLabel = isCritical ? 'WARNING' : isWatch ? 'WATCH' : 'NOMINAL';
 
   return (
-    <Card c={`h-full flex flex-col justify-between p-4 transition-all duration-200 ${
+    <Card c={`h-full flex flex-col justify-between p-4 transition-all duration-300 ${
       isCritical
-        ? 'border-red-300 bg-gradient-to-br from-red-50 via-rose-50/50 to-white dark:border-red-500/70 dark:bg-gradient-to-br dark:from-[#3a0a10] dark:via-[#1f0508] dark:to-[#0a1628] shadow-sm dark:shadow-[0_0_30px_rgba(239,68,68,0.25)]'
+        ? 'border-red-400 bg-gradient-to-br from-red-50 via-rose-50/70 to-white dark:border-red-500/70 dark:bg-gradient-to-br dark:from-[#3a0a10] dark:via-[#1f0508] dark:to-[#0a1628] shadow-md dark:shadow-[0_0_30px_rgba(239,68,68,0.3)]'
         : isWatch
-          ? 'border-amber-300 bg-gradient-to-br from-amber-50 via-yellow-50/50 to-white dark:border-amber-500/60 dark:bg-gradient-to-br dark:from-[#2d1606] dark:via-[#180c03] dark:to-[#0a1628] shadow-sm dark:shadow-[0_0_24px_rgba(245,158,11,0.15)]'
+          ? 'border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50/70 to-white dark:border-amber-500/60 dark:bg-gradient-to-br dark:from-[#2d1606] dark:via-[#180c03] dark:to-[#0a1628] shadow-sm dark:shadow-[0_0_24px_rgba(245,158,11,0.2)]'
           : 'border-slate-200 bg-gradient-to-br from-emerald-50/40 via-slate-50/30 to-white dark:border-emerald-500/40 dark:bg-gradient-to-br dark:from-[#042014] dark:via-[#05140d] dark:to-[#0a1628] shadow-xs'
     }`}>
       {/* Top Category Ribbon */}
@@ -735,22 +780,22 @@ export function ExtremeAlert({ loc, value, param, h, liveAlert }) {
             }`} />
           </span>
           <span className="text-[10px] font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400">
-            Operational Hazard Watch
+            IMD Operational Hazard Watch
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 font-medium">+{h}h Lead</span>
           <Badge
             variant={isCritical ? 'destructive' : 'outline'}
-            className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 ${
+            className={`text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 ${
               isCritical
-                ? 'bg-red-600 !text-white border-red-500'
+                ? 'bg-red-600 !text-white border-red-500 shadow-xs'
                 : isWatch
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/50'
+                  ? 'bg-amber-500 text-slate-900 border-amber-400 font-bold dark:bg-amber-500/30 dark:text-amber-200 dark:border-amber-500/60'
                   : 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/50'
             }`}
           >
-            {lvl}
+            {badgeLabel}
           </Badge>
         </div>
       </div>
@@ -787,7 +832,7 @@ export function ExtremeAlert({ loc, value, param, h, liveAlert }) {
           <div className="rounded-lg bg-white/90 dark:bg-[#071120]/90 p-2 border border-slate-200 dark:border-[#172b4d]">
             <div className="text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-semibold truncate">Threat Index</div>
             <div className={`text-sm lg:text-base font-extrabold font-mono mt-0.5 ${
-              pctOfThreshold >= 100 ? 'text-red-700 dark:text-red-400' : pctOfThreshold >= 65 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'
+              isCritical ? 'text-red-700 dark:text-red-400' : isWatch ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'
             }`}>
               {pctOfThreshold}%
             </div>
@@ -797,9 +842,9 @@ export function ExtremeAlert({ loc, value, param, h, liveAlert }) {
         {/* Threat Level Spectrum Bar */}
         <div>
           <div className="flex justify-between text-[8px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-            <span>Nominal (&lt;{Math.round(thresholdVal * 0.6)})</span>
-            <span>Advisory ({Math.round(thresholdVal * 0.6)}-{thresholdVal})</span>
-            <span>Critical (&gt;{thresholdVal})</span>
+            <span>Nominal (&lt;50%)</span>
+            <span>Advisory (50–79%)</span>
+            <span>Warning (≥80%)</span>
           </div>
           <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800">
             <div
@@ -983,13 +1028,15 @@ export function HazardMatrixCard({ loc }) {
     {
       icon: Thermometer,
       title: 'Thermal Anomaly (Heatwave)',
-      status: loc.heat === 'NO' ? `NORMAL (${loc.heatD > 0 ? '+' : ''}${loc.heatD}°C)` : `ANOMALY (+${loc.heatD}°C)`,
-      statusDetail: loc.heat === 'NO' ? 'Surface thermal profile stable vs 30-yr normal' : 'Elevated boundary layer temperature',
+      status: loc.heat === 'NO' ? `NORMAL (${loc.heatD > 0 ? '+' : ''}${loc.heatD}°C)` : `${loc.heat === 'CRITICAL' ? 'SEVERE HEATWAVE' : 'HEAT ANOMALY'} (+${loc.heatD}°C)`,
+      statusDetail: loc.heat === 'NO' ? 'Surface thermal profile stable vs 30-yr normal' : loc.heat === 'CRITICAL' ? 'Severe heatwave threshold breached (>42°C)' : 'Elevated boundary layer temperature',
       badgeClass: loc.heat === 'NO'
         ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40 shadow-xs'
-        : 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40 shadow-xs',
-      iconBox: 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400',
-      meterLevel: loc.heat === 'NO' ? 1 : 4
+        : loc.heat === 'CRITICAL'
+          ? 'bg-red-50 text-red-800 border-red-300 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40 shadow-xs'
+          : 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40 shadow-xs',
+      iconBox: loc.heat === 'CRITICAL' ? 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400',
+      meterLevel: loc.heat === 'NO' ? 1 : loc.heat === 'CRITICAL' ? 5 : 3
     },
     {
       icon: Wind,

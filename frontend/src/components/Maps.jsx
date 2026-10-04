@@ -91,8 +91,7 @@ export function LocationForecastPanel({loc,param,h}){
  return <div className="absolute right-3 top-3 z-[1000] w-64 rounded-lg border border-[#172b4d] bg-[#0a1628]/95 p-3 text-xs shadow-xl">
   <div className="flex justify-between"><b>Station Details: {loc.name}</b><button onClick={()=>setOpen(false)}><X size={14}/></button></div>
   <div className="text-[10px] text-slate-400">{loc.lat.toFixed(4)}°N, {loc.lon.toFixed(4)}°E</div>
-  <div className="mt-2 text-slate-300">Forecast (+{h}h)</div>
-  <div className="flex items-center gap-2"><span className="text-2xl font-bold">{mf.Blended} {u}</span>{param==='rain'&&<span className="rounded bg-red-600/30 px-1.5 py-0.5 text-red-300">{riskLevel(mf.Blended)==='HIGH RISK'?'Heavy Rain':riskLevel(mf.Blended)==='MODERATE'?'Moderate Rain':'Light Rain'}</span>}</div>
+  <div className="flex items-center gap-2"><span className="text-2xl font-bold">{mf.Blended} {u}</span>{param==='rain'&&<span className="rounded bg-red-600/30 px-1.5 py-0.5 text-red-300">{(riskLevel(mf.Blended)==='CRITICAL'||riskLevel(mf.Blended)==='WARNING')?'Heavy Rain':riskLevel(mf.Blended)==='WATCH'?'Moderate Rain':'Light Rain'}</span>}</div>
   <div className="mt-2 space-y-1">{Object.entries(mf).map(([m,v])=><div key={m} className="flex items-center gap-2"><span className="w-14">{m}</span><div className="h-2 flex-1 rounded bg-[#10213c]"><div className="h-2 rounded" style={{width:`${v/mx*100}%`,background:COLORS[m]}}/></div><span className="w-10 text-right">{v}</span></div>)}</div>
   {param==='rain'&&<div className="mt-2 border-t border-[#172b4d] pt-1 text-[10px] text-slate-400">IMD Heavy Rain Threshold: {IMD_THRESHOLD} mm / 24h</div>}</div>;
 }
